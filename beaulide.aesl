@@ -1,0 +1,171 @@
+<!DOCTYPE aesl-source>
+<network>
+
+
+<!--list of global events-->
+<constant value="300" name="VIT_MAX"/>
+
+
+<!--node P�riph�rique s�rie USB-->
+<node name="P�riph�rique s�rie USB" nodeId="{26d9ab47-7e21-4989-b54f-b711120ad258}"><![CDATA[#*
+ * Fichier définissant le contrôle d'un Thymio 2
+ *
+ * Ludovic Yvoz
+ * Hugo Iopeti
+ * Pour activer le son, il faut appuyer sur la flèche de droite, pour le désactiver sur la flèche de      gauche
+ *#
+ 
+# vitesse de la roue opposée à celle qui initie le tournant
+const VIT_TURN = -VIT_MAX/2
+# Variable qui contrôle si on veut le son ou pas
+var son_active
+# Variable servant à l'affiche des leds de pompiers
+var led_pulse
+# Variable servant à faire le son d'ambulance
+var time_son
+# numéro du capteur
+var cpt
+# donnée capteur normalisée
+var npi[7]
+# donnée qui enregistre le sens d'un demi-tour
+var demi_tour
+# coupe le timer 0 
+timer.period[0] = 0
+# coupe le timer 1
+timer.period[1] = 0
+
+# Boucle principale (liée au timer 0)
+onevent timer0
+
+#Son
+if son_active == 1 then
+	if time_son == 5  then
+		call sound.freq(435, 30)
+	else
+		if time_son == 10 then
+			call sound.freq(580, 30)
+		end
+	end
+	time_son = time_son - 1
+	if time_son == 0 then
+		time_son = 10
+	end
+end
+
+# Body color pulse
+led_pulse = led_pulse + 20
+if led_pulse > 0 then
+	 call leds.top(0, 0, led_pulse)
+    if led_pulse > 32 then
+    	led_pulse = -32
+    end
+else 
+	call leds.top(-led_pulse, 0, 0)
+end
+
+# Les capteurs vont de 0 à 6, de l'avt G à l'arr D
+for cpt in 0:6 do
+	npi[cpt] = prox.horizontal[cpt] 
+end
+
+#Si le robot est coincé par l'avant
+if  npi[0] != 0 and npi[1] != 0 and npi[3] != 0 and npi[4] != 0 then
+
+	#On décide de la direction dans laquelle on tourne pour le demi-tour
+  	if prox.horizontal[0] > prox.horizontal[4] then
+  		#On tourne vers la droite
+  		motor.left.target  = VIT_MAX
+		motor.right.target =VIT_TURN
+  	else
+  		#On tourne vers la gauche
+  		motor.left.target  = VIT_TURN
+		motor.right.target = VIT_MAX
+	end
+	
+	#On démarre la boucle qui durera pendant tout le demi-tour
+	timer.period[0] = 0
+	timer.period[1] = 1000
+	
+#Quand le robot n'est pas bloqué
+else
+	#Le robot est trop loin du mur de droite
+	if npi[4] == 0 then
+		#Si on à un obstacle à gauche, on l'esquive
+		if npi[0] != 0 and npi[1] != 0 then
+			#On tourne à droite 
+			motor.left.target  = VIT_MAX
+			motor.right.target = VIT_TURN
+		else
+			#Si on a un mur en face d'un seul capteur à droite
+				if npi[3] != 0 then
+					#On tourne à gauche
+					motor.left.target  = VIT_TURN
+					motor.right.target = VIT_MAX
+				else
+					#Si on a un mur en face d'un seul capteur à gauche
+					if npi[1] != 0 then
+						#On tourne à droite
+						motor.left.target  = VIT_MAX
+						motor.right.target = VIT_TURN
+					else
+						#On avance un peu avant de tourner
+						
+						#On tourne doucement à droite 
+						motor.left.target  = VIT_MAX
+						motor.right.target = VIT_MAX/2
+					end
+			end
+		end
+	else
+				#Un obstacle est détecté à droite
+				if npi[3] != 0 and npi[4] != 0 then
+					#On tourne à gauche
+					motor.left.target  = VIT_TURN
+					motor.right.target = VIT_MAX
+				else
+					#Dans le cas ou aucun obstacle ne nous bloque, on avance tout droit
+					motor.left.target = VIT_MAX
+					motor.right.target = VIT_MAX
+				end
+	end
+end
+
+# Boucle de demi-tour (liée au timer 1)
+onevent timer1
+timer.period[0] = 100
+timer.period[1] = 0
+
+  
+# Appuyer sur le bouton lance le programme
+onevent button.forward
+timer.period[0] = 100  # lance la boucle principale
+time_son = 10
+
+# Appuyer sur le bouton central arrête le robot
+onevent button.center
+timer.period[0] = 0         # stoppe le timer 0
+motor.left.target  = 0      # arrête le robot
+motor.right.target = 0
+
+# Appuyer sur le bouton arrière fait reculer le robot en dehors du programme
+onevent button.backward	
+timer.period[0] = 0  # stoppe la boucle principale
+motor.left.target  = -VIT_MAX
+motor.right.target = -VIT_MAX
+
+# Appuyer sur le bouton gauche fait tourner le robot vers la gauche en dehors du programme
+onevent button.left
+son_active = 0
+
+# Appuyer sur le bouton droite fait tourner le robot vers la droite en dehors du programme
+onevent button.right
+son_active = 1
+
+
+
+
+
+]]></node>
+
+
+</network>
